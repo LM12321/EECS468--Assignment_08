@@ -32,4 +32,4 @@ replicate' :: Int -> a -> [a]
 replicate' a b = [b | a <- [1..a]]
 
 perfects :: Int -> [Int]
-perfects n = [x | x <- [1..n], y <- [1..x], zs <- x `mod` y == 0]
+perfects n = [x if x == sum zs | x <- [1..n], y <- [1..x], zs <- x `mod` y == 0]
