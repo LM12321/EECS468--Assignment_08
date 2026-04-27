@@ -91,11 +91,33 @@ parseNumbers :: [Token] -> [Token]
         -if they're both minus, add it to the next number
 -}
 parseNumbers [] = []
---parseNumbers (Op Sub: Op Sub: Num n: xs) = n : parseNumbers xs
---parseNumbers (Num n: xs) = n : parseNumbers xs
-parseNumbers (x: xs) = x : parseNumbers xs
+parseNumbers (Op Sub: Op Sub: Num n: xs) = 
+    let (num_list, remaining_tokens) = extractNumberFromList([n], xs)   -- extract the entire number in token list
+        number = combineDigitsIntoNumber num_list   -- get that actual number by combining the list together
+    in Op Sub : Num (-number) : parseNumbers remaining_tokens    -- set the number to negative because it is
+    --also add Op Sub to the top because it's subtraction of a negative number
+
+parseNumbers (Num n: xs) = 
+    let (num_list, remaining_tokens) = extractNumberFromList([n], xs)   --same thing as above
+        number = combineDigitsIntoNumber num_list
+    in Num number : parseNumbers remaining_tokens   --it's not negative
+
+parseNumbers (x : xs) = x : parseNumbers xs --it's not a number, we don't care
 
 
-combineDigitsIntoNumber :: [Num] -> Num
-combineDigitsIntoNumber [] = 0
-combineDigitsIntoNumber (n: ns) = n * 10 ^ length (ns) + combineDigitsIntoNumber ns
+
+extractNumberFromList :: ([Int], [Token]) -> ([Int], [Token])
+-- we will reverse nums because that way it ends in proper numeric order
+extractNumberFromList (nums, []) = (reverse nums, [])   --out of tokens; reverse
+extractNumberFromList (nums, (Num n: tokens)) = extractNumberFromList (n:nums, tokens) -- if next token is number, add it to nums list
+    --NUMS WILL BE IN REVESRE NUMERIC ORDER
+    --I.E 238 becomes 832, etc.
+extractNumberFromList (nums, tokens) = (reverse nums, tokens)   -- end the recursion as there are no more sequential numbers
+
+
+combineDigitsIntoNumber :: [Int] -> Int
+combineDigitsIntoNumber [] = 0  --empty list, add 0
+combineDigitsIntoNumber (n: ns) = n * 10 ^ length ns + (combineDigitsIntoNumber ns)  
+-- works because length of list will always be -1 what it was, so [1,2,3] becomes
+-- 1 * 10 ^length[2,3] = 1 * 10^2 = 100
+
