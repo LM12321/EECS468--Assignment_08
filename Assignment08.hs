@@ -5,28 +5,13 @@ Program Name: Assignment08.hs
 
 Collaborators: N/A
 External Sources: {
-
+    -chatGPT for parseNegativeNumbers, shunt, popOperators, and error checking help
 }
 Author: Logan Whitt
 KU ID: 3152587
 Creation Date: 04/24/26 -- 04/XX/26
 
-PART 1 --
-Description: a haskell file of various functions
-Inputs: whatever the user inputs for each function
-Outputs: {
-    - replicate 
-        - returns a list of length n of a given element
-    - perfects
-        - returns a list of all perfect numbers up to given number
-    - find
-        - returns the values that have the given key in a list
-    - positions
-        - returns the indexes for which a key is found (using find)
-    - scalarproduct
-        - returns the scalar product of two same sized lists
-        - using zip
-    }
+
 -}
 
 
@@ -90,12 +75,10 @@ parseNumbers :: [Token] -> [Token]
     - if it's a minus, check if the next sign is a minus
         -if they're both minus, add it to the next number
 -}
+
+
 parseNumbers [] = []
-parseNumbers (Op Sub: Op Sub: Num n: xs) = 
-    let (num_list, remaining_tokens) = extractNumberFromList([n], xs)   -- extract the entire number in token list
-        number = combineDigitsIntoNumber num_list   -- get that actual number by combining the list together
-    in Op Sub : Num (-number) : parseNumbers remaining_tokens    -- set the number to negative because it is
-    --also add Op Sub to the top because it's subtraction of a negative number
+     --also add Op Sub to the top because it's subtraction of a negative number
 
 parseNumbers (Num n: xs) = 
     let (num_list, remaining_tokens) = extractNumberFromList([n], xs)   --same thing as above
@@ -103,7 +86,6 @@ parseNumbers (Num n: xs) =
     in Num number : parseNumbers remaining_tokens   --it's not negative
 
 parseNumbers (x : xs) = x : parseNumbers xs --it's not a number, we don't care
-
 
 
 extractNumberFromList :: ([Int], [Token]) -> ([Int], [Token])
@@ -121,9 +103,45 @@ combineDigitsIntoNumber (n: ns) = n * 10 ^ length ns + (combineDigitsIntoNumber 
 -- works because length of list will always be -1 what it was, so [1,2,3] becomes
 -- 1 * 10 ^length[2,3] = 1 * 10^2 = 100
 
+parseNegatives :: [Token] -> [Token]
+parseNegatives xs = parsePrev Nothing xs
+--start the parsePrev with nothing as the first input
+
+--nothing to parse
+parsePrev :: Maybe Token -> [Token] -> [Token]
+parsePrev _ [] = []
+
+--check if negative number
+parsePrev prev (Op Sub : Num n : xs)
+    | isNegativeNumber prev = 
+        let negative_num = Num (-n)
+        in negative_num : parsePrev (Just negative_num) xs
+
+-- just a regular minus
+parsePrev _ (Op Sub : xs) =
+    Op Sub : parsePrev (Just (Op Sub)) xs
+
+-- every other token
+parsePrev _ (token: tokens) =
+    token : parsePrev (Just token) tokens
+
+isNegativeNumber :: Maybe Token -> Bool
+isNegativeNumber Nothing            = True
+isNegativeNumber (Just LeftParen)   = True
+isNegativeNumber (Just (Op _))      = True
+isNegativeNumber _                  = False
+
 shunt :: ([Token], [Token]) -> [Token]
 
 shunt ([], []) = []
+
+--check for 5 ( ...)
+shunt (stk, Num n : LeftParen : tokens) = 
+    error "Missing operator"
+
+--check for (...)5
+shunt (stk, RightParen : Num n: tokens) =
+    error "Missing operator"
 
 shunt (stk, (Num n: tokens)) = Num n : shunt (stk, tokens)
 --add number to top of output
@@ -134,7 +152,10 @@ shunt (stk, RightParen: tokens) =
     let (popped, stk') = getAllTokensFromStackUntilLeftParen ([], stk) 
     in popped ++ shunt (stk', tokens)
 
-shunt (stk, []) = stk  
+shunt (stk, []) = 
+    if containsLeftParen stk
+        then error "unmatched parenthesis"
+    else stk  
  --tokens are empty, push everything to the stack
 
 shunt (stk, Op op1 : tokens) = 
@@ -160,6 +181,12 @@ popOperators _ stk = ([], stk)
 -- if operator given was greater than top of stack
     --return stack
 
+
+--check for if stack contains leftParen
+containsLeftParen :: [Token] -> Bool
+containsLeftParen [] = False
+containsLeftParen (LeftParen : _) = True
+containsLeftParen (_ : xs) = containsLeftParen xs
 
 getAllTokensFromStackUntilLeftParen :: ([Token], [Token]) -> ([Token], [Token])
 getAllTokensFromStackUntilLeftParen (popped, []) = error ("unmatched parentheses")
@@ -194,6 +221,10 @@ rpn ((x: y: stk), (Op Div : xs))
     | x == 0 = error "Division by 0!"
     | otherwise = rpn (apply Div y x : stk, xs)
 
+rpn ((x: y: stk), (Op Mod: xs))
+    | x == 0 = error "Division by 0!"
+    | otherwise = rpn (apply Mod y x : stk, xs)
+    
 rpn ([], (Op o : _)) = error ("Operator without operands!")
 rpn ([_], (Op o : _)) = error ("Operator without operands!")
 
@@ -201,6 +232,7 @@ rpn ([_], (Op o : _)) = error ("Operator without operands!")
 rpn (stk, (Num n: xs)) = rpn ((fromIntegral n: stk), xs)
 rpn ((x: y: stk), (Op o: xs)) = rpn ((apply o y x: stk), xs)
 
+rpn _ = error "Operator without operands!"
 
 parse :: String -> Float
-parse str =  rpn([],shunt([],parseNumbers(parseTokens str)))
+parse str = rpn ([], shunt ([], parseNegatives (parseNumbers (parseTokens str))))
