@@ -121,3 +121,86 @@ combineDigitsIntoNumber (n: ns) = n * 10 ^ length ns + (combineDigitsIntoNumber 
 -- works because length of list will always be -1 what it was, so [1,2,3] becomes
 -- 1 * 10 ^length[2,3] = 1 * 10^2 = 100
 
+shunt :: ([Token], [Token]) -> [Token]
+
+shunt ([], []) = []
+
+shunt (stk, (Num n: tokens)) = Num n : shunt (stk, tokens)
+--add number to top of output
+
+shunt (stk, LeftParen: tokens) = shunt (LeftParen: stk, tokens)
+--push leftparen to stack and continue
+shunt (stk, RightParen: tokens) = 
+    let (popped, stk') = getAllTokensFromStackUntilLeftParen ([], stk) 
+    in popped ++ shunt (stk', tokens)
+
+shunt (stk, []) = stk  
+ --tokens are empty, push everything to the stack
+
+shunt (stk, Op op1 : tokens) = 
+    --call popOperators to get operators from stack in proper priority order
+    let (popped, stk') = popOperators op1 stk  
+    in popped ++ shunt (Op op1 : stk', tokens)
+
+popOperators :: Op -> [Token] -> ([Token], [Token])
+popOperators _ [] = ([], [])    --stack is empty, return nothing
+
+    --cannot happen unless RightParen does not exist
+
+popOperators op1 (Op op2: stk)
+    --while operator 2 exists and is greater than or equal to operator 1
+    | (operatorPrecedence op2) >= (operatorPrecedence op1) =
+        --recursively call op1 with shortened stack
+        --pop op2 from stack and put it in output (popped, which is added to output in shunt)
+        -- rest is remaining stack that wasn't popped
+        let (popped, rest) = popOperators op1 stk
+        in (Op op2: popped, rest)
+
+popOperators _ stk = ([], stk)
+-- if operator given was greater than top of stack
+    --return stack
+
+
+getAllTokensFromStackUntilLeftParen :: ([Token], [Token]) -> ([Token], [Token])
+getAllTokensFromStackUntilLeftParen (popped, []) = error ("unmatched parentheses")
+getAllTokensFromStackUntilLeftParen (popped, LeftParen: stk) = (popped, stk)    -- end recursion if we found leftParen
+getAllTokensFromStackUntilLeftParen (popped, x: stk) = getAllTokensFromStackUntilLeftParen (x:popped, stk) 
+ -- add tokens to output and continue recursion
+
+
+--operator precedence function in order to compare operators
+operatorPrecedence :: Op -> Int
+operatorPrecedence Add = 1
+operatorPrecedence Sub = 1
+operatorPrecedence Mul = 2
+operatorPrecedence Div = 2
+operatorPrecedence Mod = 2
+operatorPrecedence Exp = 3
+
+
+-- Function to apply operators
+apply :: Op -> Float -> Float -> Float
+apply Add x y = x + y
+apply Sub x y = x - y
+apply Mul x y = x * y
+apply Div x y = x / y
+apply Mod x y = x - (fromIntegral(floor (x/y)) * y)
+apply Exp x y = x ** y
+
+rpn :: ([Float], [Token]) -> Float
+rpn ([x], []) = x
+
+rpn ((x: y: stk), (Op Div : xs))
+    | x == 0 = error "Division by 0!"
+    | otherwise = rpn (apply Div y x : stk, xs)
+
+rpn ([], (Op o : _)) = error ("Operator without operands!")
+rpn ([_], (Op o : _)) = error ("Operator without operands!")
+
+
+rpn (stk, (Num n: xs)) = rpn ((fromIntegral n: stk), xs)
+rpn ((x: y: stk), (Op o: xs)) = rpn ((apply o y x: stk), xs)
+
+
+parse :: String -> Float
+parse str =  rpn([],shunt([],parseNumbers(parseTokens str)))
